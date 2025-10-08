@@ -1,0 +1,26 @@
+# Core scientific libraries
+
+numpy
+pandas
+scipy
+
+# EEG-specific library
+mne
+
+# Machine learning libraries
+scikit-learn
+tensorflow
+torch
+
+# Visualisation
+matplotlib
+seaborn
+plotly
+
+# Jupyter / notebook utilities
+jupyter
+notebook
+ipython
+
+# Progress bars/ logging
+tqdm
