@@ -1,26 +1,30 @@
 # Core scientific libraries
-
-numpy
-pandas
-scipy
+numpy==1.25.0          # numerical computing
+pandas==2.1.0          # tabular data
+scipy==1.11.0          # signal processing
 
 # EEG-specific library
-mne
+mne==1.2.0             # loading, filtering, epoching EEG
 
 # Machine learning libraries
-scikit-learn
-tensorflow
-torch
+scikit-learn==1.3.0    # classical ML: LDA, SVM, RandomForest
+torch==2.1.0           # PyTorch for CNN/RNN models
 
-# Visualisation
-matplotlib
-seaborn
-plotly
+# Visualization
+matplotlib==3.9.0      # static plots
+seaborn==0.12.2        # enhanced statistical plots
+plotly==5.18.0         # interactive plots
 
 # Jupyter / notebook utilities
-jupyter
-notebook
-ipython
+jupyter==1.0.0
+notebook==7.2.0
+ipython==8.16.0        # interactive development
 
-# Progress bars/ logging
-tqdm
+# Progress bars / logging
+tqdm==4.66.0
+
+# Optional for testing
+pytest==8.3.0
+
+# Optional for model training visualization
+tensorboard==2.15.0

@@ -419,3 +419,46 @@ FodyWeavers.xsd
 
 # Dataset files
 physionet.org/
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+*.log
+*.out
+
+# EEG / dataset files
+data/raw/
+data/processed/
+*.zip
+*.tar.gz
+physionet.org/  # already in your file, keep it
+
+# Model checkpoints & logs
+models/
+checkpoints/
+*.h5
+*.pt
+*.pth
+*.ckpt
+tensorboard/
+
+.vscode/
+*.DS_Store
+Thumbs.db
+
+# Raw EEG data
+data/raw/
+data/processed/
+*.zip
+*.tar.gz
+physionet.org/
