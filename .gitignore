@@ -457,8 +457,8 @@ tensorboard/
 Thumbs.db
 
 # Raw EEG data
-data/raw/
-data/processed/
+Datasets/mat_raw/
+Datasets/mat_processed/
 *.zip
 *.tar.gz
 physionet.org/
