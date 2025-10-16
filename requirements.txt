@@ -9,6 +9,7 @@ mne
 # Machine learning libraries
 scikit-learn
 torch
+tensorflow
 
 # Visualization
 matplotlib
