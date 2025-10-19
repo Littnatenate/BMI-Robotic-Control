@@ -1,31 +1,24 @@
-import os
-import requests
+import mne
 
-base_url = "https://physionet.org/files/eegmmidb/1.0.0/"
-# Keep the original range, so it checks everything
-subjects = [f"S{str(i).zfill(3)}" for i in range(1, 110)] 
+# --- Define the subject and runs you want ---
+subject_id = 1
+# These are the motor imagery runs for left vs. right fist
+runs_to_load = [4, 8, 12] 
 
-root_folder = "physionet.org"
-os.makedirs(root_folder, exist_ok=True)
+# --- Use MNE's downloader ---
+# This will download the files to the correct MNE-managed directory
+# and return a list of the file paths.
+file_paths = mne.datasets.eegbci.load_data(
+    subject=subject_id, 
+    runs=runs_to_load
+)
 
-for subj in subjects:
-    runs = [f"{subj}R{str(r).zfill(2)}.edf" for r in range(1, 15)]
-    subj_folder = os.path.join(root_folder, subj)
-    os.makedirs(subj_folder, exist_ok=True)
-    for run in runs:
-        url = f"{base_url}{subj}/{run}"
-        local_path = os.path.join(subj_folder, run)
+print(f"✅ MNE has located/downloaded the following files for Subject {subject_id}:")
+print(file_paths)
 
-        # Check if the file already exists before downloading
-        if not os.path.exists(local_path):
-            try:
-                print(f"Downloading {run} ...")
-                r = requests.get(url)
-                r.raise_for_status()
-                with open(local_path, "wb") as f:
-                    f.write(r.content)
-            except Exception as e:
-                print(f"Failed {run}: {e}")
-        else:
-            # If it exists, just print a skip message
-            print(f"Skipping {run}, already exists.")
+# --- Load and combine the data from the paths MNE provided ---
+raw_files = [mne.io.read_raw_edf(path, preload=True) for path in file_paths]
+raw_combined = mne.concatenate_raws(raw_files)
+
+print("\n--- Combined Data Info ---")
+print(raw_combined.info)
