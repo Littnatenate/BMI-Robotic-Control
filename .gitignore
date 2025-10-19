@@ -462,3 +462,60 @@ Datasets/mat_processed/
 *.zip
 *.tar.gz
 physionet.org/
+
+
+# ----------------------------------------------------------------
+# Python / Data Science / Machine Learning
+# ----------------------------------------------------------------
+
+# Virtual Environments - THIS IS THE MOST IMPORTANT PART
+.venv/
+.venv-gpu/
+venv/
+env/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Build and distribution artifacts
+build/
+dist/
+*.egg-info/
+wheels/
+
+# Log and output files
+*.log
+*.out
+*.tmp
+
+# Datasets and Large Files (common practice)
+data/
+datasets/
+*.zip
+*.tar.gz
+*.csv
+*.parquet
+
+# Model files and logs
+models/
+checkpoints/
+runs/
+tensorboard/
+*.h5
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# IDE and OS files
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
