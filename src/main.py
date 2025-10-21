@@ -1,56 +1,50 @@
-# =================================================================
-# ✅ DEBUGGING SCRIPT: Full pipeline on a SINGLE file
-# =================================================================
-
 import mne
-from mne.preprocessing import ICA
-import os
+import numpy as np
+import sys
+import matplotlib
+import matplotlib.pyplot as plt # Import pyplot
 
-# This will show plots inside the notebook, which is more stable
 
-print("--- 1. Loading ONE file for debugging ---")
-# We load only ONE run to guarantee it fits in memory
-file_paths = mne.datasets.eegbci.load_data(subjects=1, runs=[4])
-raw = mne.io.read_raw_edf(file_paths[0], preload=True, stim_channel='auto')
-print("✅ Data loaded.")
 
-# --- 2. Preprocessing ---
-print("\n--- 2. Filtering and setting montage... ---")
-raw_processed = raw.copy()
-mapping = {ch_name: ch_name.strip('.') for ch_name in raw_processed.ch_names}
-raw_processed.rename_channels(mapping)
-raw_processed.set_montage('standard_1005', match_case=False)
-raw_processed.filter(l_freq=1., h_freq=40.)
-print("✅ Preprocessing complete.")
+print(f"--- Minimal Plotting Test ---")
+print(f"Using Python executable: {sys.executable}")
+print(f"Using MNE version: {mne.__version__}")
+print(f"Using Matplotlib version: {matplotlib.__version__}")
 
-# --- 3. Automated ICA ---
-print("\n--- 3. Running automated ICA... ---")
-ica = ICA(n_components=20, random_state=97, max_iter=800)
-ica.fit(raw_processed)
-eog_indices, eog_scores = ica.find_bads_eog(raw_processed, ch_name=['Fp1', 'Fp2'])
-ica.exclude = eog_indices
-raw_cleaned = raw_processed.copy()
-ica.apply(raw_cleaned)
-print("✅ ICA cleaning complete.")
+# --- 2. Create a Fake 'raw' Object ---
+print("Creating a fake raw object with standard_1020 montage...")
+try:
+    montage = mne.channels.make_standard_montage('standard_1020')
+    ch_names = montage.ch_names
+    sfreq = 250
+    n_channels = len(ch_names)
+    
+    # 10 seconds of fake random data
+    data = np.random.rand(n_channels, 10 * sfreq) 
+    
+    info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types='eeg')
+    raw = mne.io.RawArray(data, info)
+    
+    # --- 3. Set the Montage ---
+    raw.set_montage(montage)
+    print("Montage set successfully.")
 
-# --- 4. Epoching ---
-print("\n--- 4. Creating epochs... ---")
-events, event_id_from_annot = mne.events_from_annotations(raw_cleaned)
-event_id = {'left_fist': event_id_from_annot['T1'], 'right_fist': event_id_from_annot['T2']}
+    # --- 4. Test 1: 2D Plot ---
+    print("Attempting 2D plot...")
+    fig_2d = raw.plot_sensors(show_names=True)
+    plt.show() # Make sure the 2D plot shows up
+    print("✅ 2D plot successful.")
 
-epochs = mne.Epochs(
-    raw_cleaned,
-    events,
-    event_id=event_id,
-    tmin=-0.5,
-    tmax=4.0,
-    preload=True,
-    baseline=(-0.5, 0),
-    reject=dict(eeg=200e-6) # Using a relaxed threshold
-)
-print("✅ Epoching complete. Final trials:")
-print(epochs)
+    # --- 5. Test 2: 3D Plot ---
+    print("Attempting 3D plot (this will open a new window)...")
+    
+    # This is the command that was crashing
+    fig_3d = raw.plot_sensors(kind='3d', show_names=True)
+    
+    print("\n✅ 3D plot window opened!")
+    print("If the window is interactive and not frozen, your environment is fixed!")
+    print("You can close the 3D window and the 2D plot window to finish the test.")
 
-# --- 5. Final Visualization ---
-print("\n--- 5. Plotting drop log... ---")
-epochs.plot_drop_log()
+except Exception as e:
+    print(f"\n--- ❌ TEST FAILED ---")
+    print(f"An error occurred: {e}")

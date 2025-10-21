@@ -32,3 +32,6 @@ tensorboard
 
 # Plotting utilities
 PyQt5
+
+#interactive backend
+ipympl
