@@ -31,4 +31,4 @@ pytest
 tensorboard
 
 # Plotting utilities
-PyQt6
+PyQt5
