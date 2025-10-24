@@ -1,12 +1,13 @@
 """
 Feature Engineering for EEG Motor Imagery Data
 ------------------------------------------------
-1. Load preprocessed EEG (.fif) files.
-2. Segment EEG into sliding windows.
-3. Convert each segment into 2D spectrograms.
-4. Normalize / scale features.
-5. Visualize selected segments/channels interactively.
-6. Save final dataset for CNN training.
+Steps:
+1. Load preprocessed EEG (.fif) files from preprocessor.py
+2. Segment EEG into sliding windows
+3. Convert each segment into 2D spectrograms
+4. Normalize features
+5. Interactive visualization (optional)
+6. Save final dataset for CNN training
 """
 
 import os
@@ -16,10 +17,9 @@ from scipy.signal import spectrogram
 from sklearn.preprocessing import MinMaxScaler
 import pickle
 import matplotlib
-matplotlib.use('Qt5Agg')  # Ensure interactive backend for .py scripts
+matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
-import math
 
 plt.ion()
 
@@ -70,8 +70,7 @@ def segment_signal(raw, window_length=2.0, step_size=1.0):
     segments = []
     for start in range(0, data.shape[1] - n_samples_window + 1, step_samples):
         end = start + n_samples_window
-        segment = data[:, start:end]
-        segments.append(segment)
+        segments.append(data[:, start:end])
     return np.array(segments)
 
 def compute_spectrogram(segment, sfreq, nfft=256, freq_range=(1, 40)):
@@ -98,7 +97,6 @@ def normalize_spectrograms(specs):
 # Interactive Visualization
 # ------------------------------
 def select_segments_and_regions(raw, segments):
-    # --- Segment selection ---
     while True:
         seg_input = input(f"Enter segment indices to view (comma-separated or 'all'): ").strip().lower()
         try:
@@ -112,7 +110,6 @@ def select_segments_and_regions(raw, segments):
         except Exception as e:
             print(f"[Error] {e}. Try again.")
 
-    # --- Brain region selection ---
     print("Available regions:", list(BRAIN_REGIONS.keys()))
     while True:
         region_input = input("Enter brain regions to view (comma-separated or 'all'): ").strip().title()
@@ -130,7 +127,6 @@ def select_segments_and_regions(raw, segments):
             continue
         break
 
-    # --- Average toggle ---
     while True:
         avg_input = input("Show average across selected channels? [y/n]: ").strip().lower()
         if avg_input in ['y','n']:
@@ -142,44 +138,28 @@ def select_segments_and_regions(raw, segments):
     return seg_indices, ch_indices, average
 
 def visualize_segments_interactive(segments, specs, raw, seg_indices, ch_indices, average=False):
-    n_segments_total, n_channels_total, n_samples = segments.shape # Use different names
+    n_segments_total, n_channels_total, n_samples = segments.shape
     sfreq = raw.info['sfreq']
-
-    # Filter data based on selected indices BEFORE passing to plotting
     selected_segments = segments[seg_indices][:, ch_indices, :]
     selected_specs = specs[seg_indices][:, ch_indices, :, :]
     selected_ch_names = [raw.ch_names[i] for i in ch_indices]
-    n_selected_segments = len(seg_indices) # Number of segments to potentially view
-
-    # --- Determine number of rows to display ---
+    n_selected_segments = len(seg_indices)
     n_display_rows = 1 if average else min(len(ch_indices), 2)
-    # ---
 
     fig, axes = plt.subplots(n_display_rows, 2, figsize=(12, n_display_rows * 3), squeeze=False)
-    # Note: squeeze=False ensures axes is always a 2D array
-
-    plt.subplots_adjust(bottom=0.25, top=0.92, hspace=0.5, wspace=0.3) # Increased hspace
-
-    # --- Store references to plot elements that need updating ---
-    raw_lines = []
-    spec_images = []
-    spec_colorbars = []
+    plt.subplots_adjust(bottom=0.25, top=0.92, hspace=0.5, wspace=0.3)
+    raw_lines, spec_images = [], []
     time_axis = np.arange(n_samples) / sfreq
 
-    # --- Initial Plot Setup (Loop through display rows) ---
     for i in range(n_display_rows):
-        ax_raw, ax_spec = axes[i] # axes is always 2D
-
-        # --- Initial Raw Data Plot ---
+        ax_raw, ax_spec = axes[i]
         if average:
-            # Plot average data on the first (and only) row
             line, = ax_raw.plot(time_axis, selected_segments[0].mean(axis=0))
-            ax_raw.set_title(f"Average - Segment {seg_indices[0]}")
             spec_data = selected_specs[0].mean(axis=0)
-            plot_ch_name = "Average" # For spec title
+            plot_ch_name = "Average"
+            ax_raw.set_title(f"Average - Segment {seg_indices[0]}")
         else:
-            # Plot individual channel data for row i
-            channel_idx_in_selection = i # Index within the selected channels
+            channel_idx_in_selection = i
             line, = ax_raw.plot(time_axis, selected_segments[0][channel_idx_in_selection])
             plot_ch_name = selected_ch_names[channel_idx_in_selection]
             ax_raw.set_title(f"{plot_ch_name} - Segment {seg_indices[0]}")
@@ -190,75 +170,48 @@ def visualize_segments_interactive(segments, specs, raw, seg_indices, ch_indices
         ax_raw.set_ylabel("Amplitude")
         ax_raw.grid(True)
 
-        # --- Initial Spectrogram Plot ---
-        spec_time_bins = spec_data.shape[1]
         extent = [0, time_axis[-1], FREQ_RANGE[0], FREQ_RANGE[1]]
-        log_spec_data_init = 10 * np.log10(spec_data + 1e-10) # Plot in dB
-
-        im = ax_spec.imshow(log_spec_data_init,
-                            aspect='auto', origin='lower', extent=extent, cmap='viridis')
+        log_spec_data_init = 10 * np.log10(spec_data + 1e-10)
+        im = ax_spec.imshow(log_spec_data_init, aspect='auto', origin='lower', extent=extent, cmap='viridis')
         spec_images.append(im)
         ax_spec.set_title(f"Spectrogram - {plot_ch_name}")
         ax_spec.set_xlabel("Time (s)")
         ax_spec.set_ylabel("Frequency (Hz)")
-
-        # --- Create Colorbar ONCE per row ---
         cbar = fig.colorbar(im, ax=ax_spec, fraction=0.046, pad=0.04)
         cbar.set_label('Power (dB)')
-        spec_colorbars.append(cbar)
-        # ---
-    # --- End Initial Plot Setup Loop ---
 
-
-    # --- Update function for the slider ---
     def update_plot(val):
-        # Slider value gives index within the selected_segments/specs arrays
         idx = int(val)
-        actual_segment_index = seg_indices[idx] # Get the original segment index
-
-        # --- Loop through display rows to update ---
         for i in range(n_display_rows):
-            ax_raw, ax_spec = axes[i] # Get axes for the current row
-
-            # --- Update Raw Data ---
+            ax_raw, ax_spec = axes[i]
             if average:
                 new_raw_data = selected_segments[idx].mean(axis=0)
                 plot_ch_name = "Average"
-                ax_raw.set_title(f"{plot_ch_name} - Segment {actual_segment_index}")
                 new_spec_data = selected_specs[idx].mean(axis=0)
+                ax_raw.set_title(f"{plot_ch_name} - Segment {seg_indices[idx]}")
             else:
                 channel_idx_in_selection = i
                 new_raw_data = selected_segments[idx][channel_idx_in_selection]
                 plot_ch_name = selected_ch_names[channel_idx_in_selection]
-                ax_raw.set_title(f"{plot_ch_name} - Segment {actual_segment_index}")
                 new_spec_data = selected_specs[idx][channel_idx_in_selection]
-
+                ax_raw.set_title(f"{plot_ch_name} - Segment {seg_indices[idx]}")
             raw_lines[i].set_ydata(new_raw_data)
             ax_raw.relim()
             ax_raw.autoscale_view()
-
-            # --- Update Spectrogram Data ---
             log_spec_data = 10 * np.log10(new_spec_data + 1e-10)
             spec_images[i].set_data(log_spec_data)
             spec_images[i].set_clim(vmin=np.min(log_spec_data), vmax=np.max(log_spec_data))
-            # No need to update colorbar itself if clim is updated on the image
-
             ax_spec.set_title(f"Spectrogram - {plot_ch_name}")
-        # --- End Update Loop ---
+        fig.canvas.draw_idle()
 
-        fig.canvas.draw_idle() # Redraw the figure
-
-    # Only create slider if more than one segment was selected to view
     if n_selected_segments > 1:
-        slider_ax = fig.add_axes([0.2, 0.05, 0.6, 0.03]) # Position below plots
-        # Slider value goes from 0 to number_of_selected_segments - 1
+        slider_ax = fig.add_axes([0.2, 0.05, 0.6, 0.03])
         seg_slider = Slider(slider_ax, 'Segment', 0, n_selected_segments - 1, valinit=0, valstep=1)
-        seg_slider.on_changed(update_plot) # Link slider to update function
+        seg_slider.on_changed(update_plot)
     else:
         print("[Info] Only one segment selected. No slider needed.")
 
     plt.show(block=True)
-
 
 # ------------------------------
 # Pipeline per subject
@@ -267,8 +220,7 @@ def process_subject(subject_id, task_name, visualize=False):
     print(f"Processing Subject {subject_id}, Task {task_name}...")
     raw = load_raw_eeg(subject_id, task_name)
     segments = segment_signal(raw, WINDOW_LENGTH, STEP_SIZE)
-
-    specs = np.array([compute_spectrogram(seg, sfreq=raw.info['sfreq'], nfft=NFFT, freq_range=FREQ_RANGE) 
+    specs = np.array([compute_spectrogram(seg, sfreq=raw.info['sfreq'], nfft=NFFT, freq_range=FREQ_RANGE)
                       for seg in segments])
     specs_scaled = normalize_spectrograms(specs)
 
@@ -291,15 +243,32 @@ def save_dataset(X, y, subject_id, task_name):
     print(f"✅ Features saved to: {output_file}")
 
 # ------------------------------
-# Example usage
+# Main Execution
 # ------------------------------
 if __name__ == "__main__":
     subject_id = int(input("Enter subject ID (1-109): "))
-    task_name = 'imagined_movement'
+    
+    while True:
+        task_input = input("Select task: [0] Imagined Movement, [1] Actual Movement: ").strip()
+        if task_input == '0':
+            task_name = 'imagined_movement'
+            label_value = 1
+            break
+        elif task_input == '1':
+            task_name = 'actual_movement'
+            label_value = 0
+            break
+        else:
+            print("Invalid input. Enter 0 or 1.")
 
     X = process_subject(subject_id, task_name, visualize=VISUALIZE)
-    y = np.zeros(X.shape[0])  # Placeholder labels
+    y = np.full(X.shape[0], label_value, dtype=int)
 
-    save_prompt = input("Save dataset? [Y/N]: ").lower()
+    print(f"\nGenerated {X.shape[0]} feature vectors (spectrograms).")
+    print(f"Assigned label {label_value} to all feature vectors for task '{task_name}'.")
+
+    save_prompt = input("Save dataset? [Y/N]: ").strip().lower()
     if save_prompt == 'y':
         save_dataset(X, y, subject_id, task_name)
+    else:
+        print("Dataset not saved.")
