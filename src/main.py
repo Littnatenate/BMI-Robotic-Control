@@ -1,50 +1,80 @@
+# =========================================================
+# Automated EEG Preprocessing Pipeline
+# =========================================================
+import os
 import mne
 import numpy as np
-import sys
-import matplotlib
-import matplotlib.pyplot as plt # Import pyplot
 
+# ------------------------------
+# Config: Paths & Tasks
+# ------------------------------
+BASE_RAW_PATH = r"C:\Users\524yu\OneDrive\Documents\VSCODEE\BMI-Robotic-Control\Datasets\raw"
+BASE_OUTPUT_PATH = r"C:\Users\524yu\OneDrive\Documents\VSCODEE\BMI-Robotic-Control\Datasets\processed"
 
+TASK_RUNS = {
+    'imagined_movement': [4, 8, 12],
+    'actual_movement': [3, 7, 11]
+}
 
-print(f"--- Minimal Plotting Test ---")
-print(f"Using Python executable: {sys.executable}")
-print(f"Using MNE version: {mne.__version__}")
-print(f"Using Matplotlib version: {matplotlib.__version__}")
+ICA_EXCLUDE_COMPONENTS = [0, 10, 11, 17, 18, 19]
 
-# --- 2. Create a Fake 'raw' Object ---
-print("Creating a fake raw object with standard_1020 montage...")
-try:
+# ------------------------------
+# Function: Load & Combine Data
+# ------------------------------
+def process_subject_task(subject_id, task_name, runs):
+    print(f"--- Processing Subject {subject_id}, Task: {task_name} ---")
+    subject_folder = f"S{subject_id:03d}"
+    subject_folder_path = os.path.join(BASE_RAW_PATH, subject_folder)
+    
+    # Load all runs
+    raw_list = []
+    for run_number in runs:
+        file_name = f"{subject_folder}R{run_number:02d}.edf"
+        file_path = os.path.join(subject_folder_path, file_name)
+        raw = mne.io.read_raw_edf(file_path, preload=True, stim_channel='auto')
+        raw_list.append(raw)
+        
+    # Concatenate runs
+    raw_combined = mne.concatenate_raws(raw_list)
+    
+    # Channel Setup
+    raw_combined.rename_channels(lambda name: name.replace('.', '').strip().upper())
+    raw_combined.set_channel_types({ch: 'eeg' for ch in raw_combined.ch_names})
     montage = mne.channels.make_standard_montage('standard_1020')
-    ch_names = montage.ch_names
-    sfreq = 250
-    n_channels = len(ch_names)
+    raw_combined.set_montage(montage, match_case=False, match_alias=True, on_missing='warn')
     
-    # 10 seconds of fake random data
-    data = np.random.rand(n_channels, 10 * sfreq) 
+    # Filtering
+    raw_filtered = raw_combined.copy().filter(l_freq=1., h_freq=40.)
+    raw_filtered.notch_filter(freqs=[50])
     
-    info = mne.create_info(ch_names=ch_names, sfreq=sfreq, ch_types='eeg')
-    raw = mne.io.RawArray(data, info)
+    # ICA
+    ica = mne.preprocessing.ICA(n_components=20, random_state=97, max_iter=800)
+    ica.fit(raw_filtered)
+    ica.exclude = ICA_EXCLUDE_COMPONENTS
+    raw_cleaned = ica.apply(raw_filtered.copy())
     
-    # --- 3. Set the Montage ---
-    raw.set_montage(montage)
-    print("Montage set successfully.")
+    # Save cleaned data
+    output_folder = os.path.join(BASE_OUTPUT_PATH, subject_folder)
+    os.makedirs(output_folder, exist_ok=True)
+    output_filename = f"{subject_folder}_{task_name}_cleaned.fif"
+    output_path = os.path.join(output_folder, output_filename)
+    raw_cleaned.save(output_path, overwrite=True)
+    print(f"✅ Cleaned EEG data saved to: {output_path}\n")
+    
+    return output_path
 
-    # --- 4. Test 1: 2D Plot ---
-    print("Attempting 2D plot...")
-    fig_2d = raw.plot_sensors(show_names=True)
-    plt.show() # Make sure the 2D plot shows up
-    print("✅ 2D plot successful.")
+# ------------------------------
+# Run pipeline for all subjects & tasks
+# ------------------------------
+N_SUBJECTS = 109  # example: change to your total number of subjects
 
-    # --- 5. Test 2: 3D Plot ---
-    print("Attempting 3D plot (this will open a new window)...")
-    
-    # This is the command that was crashing
-    fig_3d = raw.plot_sensors(kind='3d', show_names=True)
-    
-    print("\n✅ 3D plot window opened!")
-    print("If the window is interactive and not frozen, your environment is fixed!")
-    print("You can close the 3D window and the 2D plot window to finish the test.")
+for subj in range(64, N_SUBJECTS + 1):
+    for task, runs in TASK_RUNS.items():
+        process_subject_task(subj, task, runs)
 
-except Exception as e:
-    print(f"\n--- ❌ TEST FAILED ---")
-    print(f"An error occurred: {e}")
+
+
+"""
+Temporary use of this .py file to save all cleaned raw EEG data (filtered & ICA processed) into a separate folder.
+2 Data run types (iimaginary & actual movements)
+"""

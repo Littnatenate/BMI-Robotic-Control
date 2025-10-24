@@ -6,7 +6,7 @@ RAW_PATH = r"C:\Users\524yu\OneDrive\Documents\VSCODEE\BMI-Robotic-Control\Datas
 os.makedirs(RAW_PATH, exist_ok=True)
 
 # downloading all subjects and runs
-subjects = range(49, 64)
+subjects = range(64, 65)
 runs = range(1, 15)
 
 # downloading section

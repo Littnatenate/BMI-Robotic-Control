@@ -5,6 +5,7 @@ scipy
 
 # EEG-specific library
 mne
+mne-connectivity
 
 # Machine learning libraries
 scikit-learn
