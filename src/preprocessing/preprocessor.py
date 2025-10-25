@@ -11,9 +11,11 @@ from itertools import combinations
 from tqdm import tqdm
 from scipy.signal import welch, spectrogram
 from sklearn.preprocessing import MinMaxScaler
+from matplotlib.widgets import Slider
 
 import mne
 from mne.preprocessing import ICA
+from mne.time_frequency import psd_array_welch
 
 # Interactive plotting for .py scripts
 plt.ion()
@@ -161,13 +163,6 @@ ax.set_ylabel('Y')
 ax.set_zlabel('Z')
 ax.set_title("3D EEG Electrode Layout")
 
-
-
-
-"""
-FILTERING & ARTIFACT REMOVAL
-"""
-
 # =========================================================
 # Bandpass + Notch Filtering
 # =========================================================
@@ -178,9 +173,8 @@ psd_after = raw_filtered.compute_psd(fmin=1, fmax=80, average='mean')
 psd_after.plot()
 plt.suptitle("PSD After Bandpass + Notch Filtering", fontsize=14)
 
-
 # ICA decomposition
-ica = ICA(n_components=20, random_state=97, max_iter=800)
+ica = ICA(n_components=32, random_state=97, max_iter=800)
 ica.fit(raw_filtered)
 
 # Plot ICA sources interactively to inspect components
@@ -191,16 +185,8 @@ plt.show()
 ica.plot_components()
 plt.show()
 
-
-
-import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
-import numpy as np
-from mne.preprocessing import ICA
-from mne.time_frequency import psd_array_welch
-
 # ------------------------------
-# Fit ICA if not done yet
+# Fit ICA
 # ------------------------------
 ica = ICA(n_components=32, random_state=97, max_iter=800)
 ica.fit(raw_filtered)
