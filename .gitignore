@@ -520,3 +520,8 @@ tensorboard/
 *.DS_Store
 Thumbs.db
 
+# Weights and Biases
+wandb/
+*.wandb
+artifacts/
+
