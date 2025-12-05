@@ -1,11 +1,9 @@
 """
-FEATURE ENGINEERING V5 (FINAL REPAIR): SHAPE ENFORCEMENT
-========================================================
-Description:
-    1. Loads raw files.
-    2. Converts to Spectrograms.
-    3. ***CRITICAL FIX***: Forces every single image to be exactly (32, 4).
-    4. Saves as .pkl.
+FEATURE ENGINEERING (ORIGINAL RESTORED)
+=======================================
+- Logic: Restored from your "V5" upload.
+- Scaling: StandardScaler (Centers data, no "flat" images).
+- Shape: (32, 4).
 """
 
 import os
@@ -20,16 +18,14 @@ import logging
 
 # --- CONFIGURATION ---
 BASE_OUTPUT_PATH = Path(r"C:\Users\524yu\OneDrive\Documents\VSCODEE\BMI-Robotic-Control\Datasets\processed")
-SUBJECT_RANGE = range(1, 110) # Run everyone to be safe
+SUBJECT_RANGE = range(1, 110)
 TASKS_TO_PROCESS = ['actual_movement', 'imagined_movement']
 
-# Spectrogram Settings
-FREQ_RANGE = (1, 40)
+# Spectrogram Settings (Original)
+FREQ_RANGE = (4, 40)
 NFFT = 128            
 NOVERLAP = 64         
-
-# *** THE FIX ***
-TARGET_SHAPE = (32, 4) 
+TARGET_SHAPE = (32, 8)  # The original small shape
 
 LABEL_MAP = {
     ('actual_movement', 'left'): 0,
@@ -39,7 +35,7 @@ LABEL_MAP = {
 }
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
-logger = logging.getLogger("FE_V5_Repair")
+logger = logging.getLogger("FE_Original")
 
 def load_cleaned_eeg(subject_id, task_name):
     sub_str = f"S{subject_id:03d}"
@@ -72,7 +68,6 @@ def compute_spectrogram(epoch_data, sfreq):
         f, t, Sxx = spectrogram(epoch_data[ch], fs=sfreq, nperseg=NFFT, noverlap=NOVERLAP)
         mask = (f >= FREQ_RANGE[0]) & (f <= FREQ_RANGE[1])
         Sxx_db = 10 * np.log10(Sxx[mask, :] + 1e-12)
-        # APPLY FIX
         specs.append(pad_or_trim(Sxx_db, TARGET_SHAPE))
     return np.array(specs) 
 
@@ -105,7 +100,7 @@ def process_subject(subject_id):
 
     if not features: return
     
-    # Standardization
+    # Standardization (The Original Logic)
     X = np.array(features)
     y = np.array(labels)
     
@@ -115,12 +110,11 @@ def process_subject(subject_id):
         flat = X[:, ch, :, :].reshape(-1, 1)
         X_out[:, ch, :, :] = scaler.fit_transform(flat).reshape(X.shape[0], X.shape[2], X.shape[3])
 
-    # Save
     out_dir = BASE_OUTPUT_PATH / f"S{subject_id:03d}"
     out_dir.mkdir(exist_ok=True)
     with open(out_dir / f"S{subject_id:03d}_spectrograms.pkl", 'wb') as f:
-        pickle.dump({'X': X_out, 'y': y, 'channels': channel_names, 'class_map': LABEL_MAP}, f)
+        pickle.dump({'X': X_out, 'y': y, 'channels': channel_names}, f)
 
 if __name__ == '__main__':
-    print(f"--- FIXING DATASET SHAPES TO {TARGET_SHAPE} ---")
+    print(f"--- RESTORING ORIGINAL DATA {TARGET_SHAPE} ---")
     for sub in tqdm(SUBJECT_RANGE): process_subject(sub)

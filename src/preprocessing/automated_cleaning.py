@@ -35,7 +35,7 @@ class PipelineConfig:
     base_output_path: Path = Path(r"C:\Users\524yu\OneDrive\Documents\VSCODEE\BMI-Robotic-Control\Datasets\processed")
     
     # Processing Parameters
-    subjects: range = range(20, 32)
+    subjects: range = range(1, 110)
     tasks: Dict[str, List[int]] = field(default_factory=lambda: {
         'imagined_movement': [4, 8, 12],
         'actual_movement': [3, 7, 11]

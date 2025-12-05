@@ -36,7 +36,7 @@ H_FREQ = 40.0
 TARGET_SFREQ = 160  # Standardize sampling rate to 160Hz
 
 LABEL_MAP = {
-    'imagined_movement': {'left': 2, 'right': 3},
+    'imagined_movement': {'left': 0, 'right': 1},
     'actual_movement':   {'left': 0, 'right': 1} 
 }
 TASKS_TO_PROCESS = ['imagined_movement', 'actual_movement'] 
