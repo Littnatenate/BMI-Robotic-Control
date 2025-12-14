@@ -1,133 +1,187 @@
 """
-FEATURE EXTRACTION: EEGNET (RAW TIME-SERIES)
-============================================
-Description:
-    1. Loads cleaned EEG data.
-    2. Bandpass filters 4-40Hz (Standard for Motor Imagery to capture Mu/Beta).
-    3. Epochs the data (Raw Voltage) without converting to Spectrograms.
-    4. Saves as .pkl files specifically for EEGNet training.
+Feature Engineering: Raw Time-Series Extraction (EEGNet/ATCNet)
+===============================================================
+This script processes cleaned EEG data for Deep Learning models.
+It performs the following steps:
+1. Resampling to 160Hz.
+2. Bandpass filtering (4-40Hz).
+3. Epoch extraction (0.5s to 2.5s).
+4. Data standardization (shape enforcement).
+5. Feature serialization (.pkl).
 
-Output Shape: (Trials, Channels, TimePoints) -> e.g., (N, 64, 320)
+Author: [Your Name/Lab]
 """
 
+import sys
 import os
+import logging
+import pickle
+from pathlib import Path
 import numpy as np
 import mne
-import pickle
-import logging
 from tqdm import tqdm
-from pathlib import Path
+
+# Add source directory to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(current_dir))
+sys.path.append(os.path.join(parent_dir, 'src'))
+
+from config import PROCESSED_DATA_DIR, SUBJECTS, TASKS
 
 # --- Configuration ---
-BASE_RAW_PATH = Path(r"C:\Users\524yu\OneDrive\Documents\VSCODEE\BMI-Robotic-Control\Datasets\processed")
-BASE_OUTPUT_PATH = Path(r"C:\Users\524yu\OneDrive\Documents\VSCODEE\BMI-Robotic-Control\Datasets\processed_eegnet")
-BASE_OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR = PROCESSED_DATA_DIR.parent / "processed_eegnet"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-SUBJECT_RANGE = range(1, 110)
-EPOCH_DURATION = 2.0
-TMIN = 0.5 
-TMAX = TMIN + EPOCH_DURATION 
+# Signal Processing Parameters
+TARGET_SFREQ = 160
+FREQ_BAND = (4.0, 40.0)  # (Low, High)
+EPOCH_WINDOW = (0.5, 2.5) # (Tmin, Tmax)
 
-# EEGNet Settings
-# We filter 4-40Hz to isolate Mu (8-12) and Beta (13-30) rhythms, 
-# while removing low-frequency drift (<4Hz) and high-frequency noise (>40Hz).
-L_FREQ = 4.0
-H_FREQ = 40.0
-TARGET_SFREQ = 160  # Standardize sampling rate to 160Hz
+# Calculate expected samples: (2.5 - 0.5) * 160 = 320
+EXPECTED_SAMPLES = int((EPOCH_WINDOW[1] - EPOCH_WINDOW[0]) * TARGET_SFREQ)
 
-LABEL_MAP = {
-    'imagined_movement': {'left': 0, 'right': 1},
-    'actual_movement':   {'left': 0, 'right': 1} 
-}
-TASKS_TO_PROCESS = ['imagined_movement', 'actual_movement'] 
+# Logging Setup
+logging.basicConfig(evel=logging.INFO, format='%(message)s')
+logger = logging.getLogger("EEGNet_Gen")
+mne.set_log_level('ERROR')
 
-# --- Logging ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
-logger = logging.getLogger(__name__)
 
-def process_subject_eegnet(subject_id):
+def _preprocess_task_data(file_path, task_name):
+    """
+    Loads, filters, and epochs a single EEG file.
+    Returns X (features) and y (labels) or (None, None) if failed.
+    """
+    try:
+        raw = mne.io.read_raw_fif(file_path, preload=True)
+
+        # 1. Resample
+        # Enforce target sampling rate to ensure consistent array sizes
+        if raw.info['sfreq'] != TARGET_SFREQ:
+            raw.resample(TARGET_SFREQ, npad="auto")
+
+        # 2. Filter
+        # FIR bandpass filter (4-40Hz)
+        raw.filter(FREQ_BAND[0], FREQ_BAND[1], fir_design='firwin', verbose=False)
+
+        # 3. Event Extraction
+        events, event_id_map = mne.events_from_annotations(raw, verbose=False)
+        
+        # Identify specific event codes for T1 and T2
+        #t1 = next((v for k, v in event_id_map.items() if 'T1' in k), None)
+        #t2 = next((v for k, v in event_id_map.items() if 'T2' in k), None)
+        
+        t1= None
+
+        for label, code in event_id_map.items():
+            if 'T1' in label:
+                t1 = code
+                break # Once T1 is found, stop finding for it
+
+        t2 = None
+
+        for label, code in event_id_map.items():
+            if 'T2' in label:
+                t2 = code
+
+        if not t1 or not t2:
+            return None, None
+
+        # 4. Epoching
+        # Note: We subtract one sample from tmax to handle MNE's inclusive slicing
+        # ensuring the output length matches EXPECTED_SAMPLES exactly.
+        epochs = mne.Epochs(
+            raw, 
+            events, 
+            event_id={str(t1): t1, str(t2): t2}, 
+            tmin=EPOCH_WINDOW[0], 
+            tmax=EPOCH_WINDOW[1] - (1 / TARGET_SFREQ),
+            baseline=None, 
+            verbose=False
+        )
+
+        X = epochs.get_data(copy=True) * 1e6  # Scale V to uV
+        y_raw = epochs.events[:, -1]
+
+        # 5. Shape Enforcement
+        # Ensure exact time-dimension length (N, Channels, Time)
+        current_samples = X.shape[2]
+        
+        if current_samples != EXPECTED_SAMPLES:
+            if current_samples > EXPECTED_SAMPLES:
+                # Trim excess samples
+                X = X[:, :, :EXPECTED_SAMPLES]
+            elif current_samples < EXPECTED_SAMPLES:
+                # Edge pad if samples are missing (rare fallback)
+                diff = EXPECTED_SAMPLES - current_samples # Calculates how much to add
+                X = np.pad(X, ((0, 0), (0, 0), (0, diff)), mode='edge') # This is for N_Epochs, N_Channels, N_Timepoints
+
+        # 6. Label Mapping
+        # Real Movement: 0, 1 | Imagined Movement: 2, 3
+        y = np.zeros_like(y_raw)
+        #base_offset = 2 if task_name == 'imagined_movement' else 0
+        if task_name == 'imagined_movement':
+            base_offset = 2
+        else:
+            base_offset = 0
+
+
+        y[y_raw == t1] = base_offset + 0
+        y[y_raw == t2] = base_offset + 1
+
+        return X, y
+
+    except Exception as e:
+        logger.warning(f"Error processing {file_path.name}: {e}")
+        return None, None
+
+
+def process_subject(subject_id):
+    """
+    Aggregates all tasks for a subject and saves the feature set.
+    """
     sub_str = f"S{subject_id:03d}"
-    all_X = []
-    all_y = []
+    clean_dir = PROCESSED_DATA_DIR / sub_str
     
-    for task in TASKS_TO_PROCESS:
-        # FIX: Use correct filename _cleaned_eeg.fif
-        file_path = BASE_RAW_PATH / sub_str / f"{sub_str}_{task}_cleaned_eeg.fif"
+    subject_X = []
+    subject_y = []
+    
+    for task_name in TASKS.keys():
+        file_path = clean_dir / f"{sub_str}_{task_name}_cleaned_eeg.fif"
         
         if not file_path.exists():
             continue
-            
-        try:
-            raw = mne.io.read_raw_fif(file_path, preload=True, verbose='ERROR')
-            
-            # 1. Resample (Standardize input size for Neural Net)
-            if raw.info['sfreq'] != TARGET_SFREQ:
-                raw.resample(TARGET_SFREQ, npad="auto", verbose='ERROR')
-            
-            # 2. Filter (4-40Hz)
-            raw.filter(L_FREQ, H_FREQ, fir_design='firwin', skip_by_annotation='edge', verbose='ERROR')
-            
-            # 3. Find Events (Robust Method for PhysioNet)
-            events, event_id_map = mne.events_from_annotations(raw, verbose=False)
-            
-            # Robustly find T1/T2 even if named "Event/T1" or similar
-            t1_key = next((k for k in event_id_map if 'T1' in k), None)
-            t2_key = next((k for k in event_id_map if 'T2' in k), None)
-            
-            if not t1_key or not t2_key:
-                continue
-                
-            event_dict = {'T1': event_id_map[t1_key], 'T2': event_id_map[t2_key]}
-            
-            # 4. Create Epochs
-            epochs = mne.Epochs(raw, events, event_dict, 
-                                tmin=TMIN, tmax=TMAX - (1/raw.info['sfreq']),
-                                baseline=None, preload=True, verbose='ERROR')
-            
-            # 5. Get Data (Microvolts)
-            # Scaling by 1e6 converts Volts to Microvolts.
-            # Neural Networks converge faster with values like 10.0 instead of 0.00001
-            X = epochs.get_data(copy=True) * 1e6 
-            y_raw = epochs.events[:, -1]
-            
-            # 6. Remap Labels
-            y = np.zeros_like(y_raw)
-            # Map T1 -> Class ID
-            y[y_raw == event_dict['T1']] = LABEL_MAP[task]['left']
-            y[y_raw == event_dict['T2']] = LABEL_MAP[task]['right']
-            
-            all_X.append(X)
-            all_y.append(y)
-            
-        except Exception as e:
-            logger.error(f"Error S{subject_id}: {e}")
-            continue
+        
+        X, y = _preprocess_task_data(file_path, task_name)
+        
+        if X is not None:
+            subject_X.append(X)
+            subject_y.append(y)
 
-    if not all_X:
-        return False
-        
-    X_final = np.concatenate(all_X, axis=0)
-    y_final = np.concatenate(all_y, axis=0)
+    if not subject_X:
+        return
+
+    # Concatenate all tasks
+    X_final = np.concatenate(subject_X, axis=0)
+    y_final = np.concatenate(subject_y, axis=0)
     
-    # Save
-    subj_dir = BASE_OUTPUT_PATH / sub_str
-    subj_dir.mkdir(exist_ok=True)
+    # Save to disk
+    out_sub_dir = OUTPUT_DIR / sub_str
+    out_sub_dir.mkdir(parents=True, exist_ok=True)
     
-    save_path = subj_dir / f"{sub_str}_eegnet_features.pkl"
+    save_path = out_sub_dir / f"{sub_str}_eegnet_features.pkl"
+    
     with open(save_path, 'wb') as f:
-        pickle.dump({'X': X_final.astype(np.float32), 'y': y_final.astype(np.int64)}, f)
-        
-    return True
+        pickle.dump({
+            'X': X_final.astype(np.float32), 
+            'y': y_final.astype(np.int64)
+        }, f)
+
 
 if __name__ == "__main__":
-    logger.info("="*60)
-    logger.info(f"STARTING EEGNET FEATURE EXTRACTION")
-    logger.info(f"Output: {BASE_OUTPUT_PATH}")
-    logger.info("="*60)
+    logger.info(f"Starting EEGNet Feature Extraction")
+    logger.info(f"Target Shape: {EXPECTED_SAMPLES} samples @ {TARGET_SFREQ}Hz")
     
-    count = 0
-    for subj in tqdm(SUBJECT_RANGE, desc="Processing"):
-        if process_subject_eegnet(subj):
-            count += 1
-            
-    logger.info(f"Done. Processed {count}/{len(SUBJECT_RANGE)} subjects.")
+    for sub in tqdm(SUBJECTS, desc="Processing Subjects"):
+        process_subject(sub)
+        
+    logger.info("Processing complete.")

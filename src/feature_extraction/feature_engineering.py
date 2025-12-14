@@ -1,120 +1,161 @@
 """
-FEATURE ENGINEERING (ORIGINAL RESTORED)
-=======================================
-- Logic: Restored from your "V5" upload.
-- Scaling: StandardScaler (Centers data, no "flat" images).
-- Shape: (32, 4).
+FEATURE ENGINEERING: SPECTROGRAMS (GAP-CNN)
+===========================================
+1. Loads Cleaned EEG (.fif).
+2. Epochs the data (T1/T2 events).
+3. Computes STFT (Short-Time Fourier Transform).
+4. Converts to Log-Scale (dB) for visibility.
+5. Standardizes (Z-Score) for Neural Net stability.
+6. Saves as .pkl.
 """
 
+import sys
 import os
-import pickle
+
+# --- PATH FIX ---
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(current_dir)) # Go up two levels to find src
+sys.path.append(os.path.join(parent_dir, 'src'))
+
 import numpy as np
 import mne
+import pickle
+import logging
 from scipy.signal import spectrogram
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from pathlib import Path
-import logging
 
-# --- CONFIGURATION ---
-BASE_OUTPUT_PATH = Path(r"C:\Users\524yu\OneDrive\Documents\VSCODEE\BMI-Robotic-Control\Datasets\processed")
-SUBJECT_RANGE = range(1, 110)
-TASKS_TO_PROCESS = ['actual_movement', 'imagined_movement']
+# Import Config
+from config import (
+    PROCESSED_DATA_DIR, 
+    SUBJECTS, TASKS, LABEL_MAP
+)
 
-# Spectrogram Settings (Original)
+# --- SPECTROGRAM SETTINGS ---
+# Refined for Motor Imagery (4-40Hz)
 FREQ_RANGE = (4, 40)
 NFFT = 128            
 NOVERLAP = 64         
-TARGET_SHAPE = (32, 8)  # The original small shape
+TARGET_SHAPE = (32, 40) # (FreqBins, TimeBins) - Standardized size for CNN
 
-LABEL_MAP = {
-    ('actual_movement', 'left'): 0,
-    ('actual_movement', 'right'): 1,
-    ('imagined_movement', 'left'): 2,
-    ('imagined_movement', 'right'): 3,
-}
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
-logger = logging.getLogger("FE_Original")
-
-def load_cleaned_eeg(subject_id, task_name):
-    sub_str = f"S{subject_id:03d}"
-    file_path = BASE_OUTPUT_PATH / sub_str / f"{sub_str}_{task_name}_cleaned_eeg.fif"
-    if not file_path.exists(): return None
-    try: return mne.io.read_raw_fif(file_path, preload=True, verbose='ERROR')
-    except: return None
-
-def pad_or_trim(spec, target_shape):
-    """Forces spectrogram to match target_shape (32, 4)."""
-    f_tgt, t_tgt = target_shape
-    f_curr, t_curr = spec.shape
-    
-    # Trim
-    if f_curr > f_tgt: spec = spec[:f_tgt, :]
-    if t_curr > t_tgt: spec = spec[:, :t_tgt]
-    
-    # Pad
-    if spec.shape != target_shape:
-        pad_val = np.min(spec)
-        new_spec = np.full(target_shape, pad_val, dtype=spec.dtype)
-        new_spec[:spec.shape[0], :spec.shape[1]] = spec
-        return new_spec
-    return spec
-
-def compute_spectrogram(epoch_data, sfreq):
-    n_channels = epoch_data.shape[0]
-    specs = []
-    for ch in range(n_channels):
-        f, t, Sxx = spectrogram(epoch_data[ch], fs=sfreq, nperseg=NFFT, noverlap=NOVERLAP)
-        mask = (f >= FREQ_RANGE[0]) & (f <= FREQ_RANGE[1])
-        Sxx_db = 10 * np.log10(Sxx[mask, :] + 1e-12)
-        specs.append(pad_or_trim(Sxx_db, TARGET_SHAPE))
-    return np.array(specs) 
+# Setup Logging
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logger = logging.getLogger("Spectrogram_Gen")
+mne.set_log_level('ERROR')
 
 def process_subject(subject_id):
-    features, labels, channel_names = [], [], None
+    sub_str = f"S{subject_id:03d}"
+    sub_dir = PROCESSED_DATA_DIR / sub_str
     
-    for task in TASKS_TO_PROCESS:
-        raw = load_cleaned_eeg(subject_id, task)
-        if not raw: continue
-        if channel_names is None: channel_names = raw.ch_names
+    features = []
+    labels = []
+    
+    # Process both Actual and Imagined tasks
+    for task in TASKS.keys():
+        file_path = sub_dir / f"{sub_str}_{task}_cleaned_eeg.fif"
+        
+        if not file_path.exists(): continue
         
         try:
+            raw = mne.io.read_raw_fif(file_path, preload=True)
+            
+            # 1. Extract Events (T1=Left, T2=Right)
             events, event_id_map = mne.events_from_annotations(raw, verbose=False)
-            t1 = next((v for k, v in event_id_map.items() if 'T1' in k), None)
-            t2 = next((v for k, v in event_id_map.items() if 'T2' in k), None)
-            if not t1 or not t2: continue
             
-            epochs = mne.Epochs(raw, events, {'L': t1, 'R': t2}, tmin=0.5, tmax=2.5, baseline=None, verbose='ERROR')
-            data = epochs.get_data(copy=False)
-            ev = epochs.events[:, -1]
-            inv_map = {t1: 'left', t2: 'right'}
+            # Robust mapping (Handle different naming variations)
+            t1_id = next((v for k, v in event_id_map.items() if 'T1' in k), None)
+            t2_id = next((v for k, v in event_id_map.items() if 'T2' in k), None)
             
+            if not t1_id or not t2_id: continue
+            
+            # 2. Epoching (0.5s to 2.5s)
+            # We cut 2 seconds of data where the user is "Imagining"
+            epochs = mne.Epochs(raw, events, event_id={str(t1_id): t1_id, str(t2_id): t2_id}, 
+                                tmin=0.5, tmax=2.5, baseline=None, verbose=False)
+            
+            data = epochs.get_data(copy=True)
+            event_list = epochs.events[:, -1]
+            
+            # 3. Compute Spectrograms
             for i in range(len(data)):
-                spec = compute_spectrogram(data[i], raw.info['sfreq'])
-                lbl = LABEL_MAP.get((task, inv_map.get(ev[i])))
-                if lbl is not None:
-                    features.append(spec)
-                    labels.append(lbl)
-        except: continue
+                epoch_data = data[i] # Shape: (Channels, Time)
+                trial_specs = []
+                
+                for ch_idx in range(epoch_data.shape[0]):
+                    f, t, Sxx = spectrogram(epoch_data[ch_idx], fs=raw.info['sfreq'], 
+                                          nperseg=NFFT, noverlap=NOVERLAP)
+                    
+                    # Bandpass Mask (4-40Hz)
+                    mask = (f >= FREQ_RANGE[0]) & (f <= FREQ_RANGE[1])
+                    Sxx_roi = Sxx[mask, :]
+                    
+                    # Log-Scale (dB) -> Makes low-power signals visible
+                    Sxx_db = 10 * np.log10(Sxx_roi + 1e-12)
+                    
+                    # Resize to Fixed Shape (pad or trim)
+                    Sxx_fixed = _resize_spec(Sxx_db, TARGET_SHAPE)
+                    trial_specs.append(Sxx_fixed)
+                
+                features.append(np.array(trial_specs))
+                
+                # Label Mapping: T1->0 (Left), T2->1 (Right)
+                # We encode task type into label: 0/1=Actual, 2/3=Imagined
+                base_label = 0 if event_list[i] == t1_id else 1
+                offset = 2 if task == 'imagined_movement' else 0
+                labels.append(base_label + offset)
+
+        except Exception as e:
+            logger.warning(f"Error {sub_str}: {e}")
+            continue
 
     if not features: return
-    
-    # Standardization (The Original Logic)
-    X = np.array(features)
+
+    # 4. Standardization (Z-Score per channel)
+    # Critical for CNN convergence
+    X = np.array(features) # (N, Ch, Freq, Time)
     y = np.array(labels)
     
-    X_out = np.zeros_like(X)
+    X_scaled = np.zeros_like(X)
     for ch in range(X.shape[1]):
         scaler = StandardScaler()
-        flat = X[:, ch, :, :].reshape(-1, 1)
-        X_out[:, ch, :, :] = scaler.fit_transform(flat).reshape(X.shape[0], X.shape[2], X.shape[3])
+        # Flatten (N, F, T) -> (N*T, F) to fit scaler
+        ch_data = X[:, ch, :, :]
+        shape = ch_data.shape
+        flat = ch_data.reshape(-1, 1)
+        scaled = scaler.fit_transform(flat).reshape(shape)
+        X_scaled[:, ch, :, :] = scaled
 
-    out_dir = BASE_OUTPUT_PATH / f"S{subject_id:03d}"
-    out_dir.mkdir(exist_ok=True)
-    with open(out_dir / f"S{subject_id:03d}_spectrograms.pkl", 'wb') as f:
-        pickle.dump({'X': X_out, 'y': y, 'channels': channel_names}, f)
+    # 5. Save
+    out_file = sub_dir / f"{sub_str}_spectrograms.pkl"
+    with open(out_file, 'wb') as f:
+        pickle.dump({'X': X_scaled, 'y': y, 'channels': raw.ch_names}, f)
 
-if __name__ == '__main__':
-    print(f"--- RESTORING ORIGINAL DATA {TARGET_SHAPE} ---")
-    for sub in tqdm(SUBJECT_RANGE): process_subject(sub)
+def _resize_spec(spec, target_shape):
+    """Ensures every image is exactly (32, 40)."""
+    curr_f, curr_t = spec.shape
+    tgt_f, tgt_t = target_shape
+    
+    # Trim Freqs
+    if curr_f > tgt_f: spec = spec[:tgt_f, :]
+    
+    # Pad Freqs
+    if curr_f < tgt_f:
+        pad = np.min(spec)
+        spec = np.pad(spec, ((0, tgt_f - curr_f), (0, 0)), constant_values=pad)
+        
+    # Trim Time
+    if curr_t > tgt_t: spec = spec[:, :tgt_t]
+        
+    # Pad Time
+    if curr_t < tgt_t:
+        pad = np.min(spec)
+        spec = np.pad(spec, ((0, 0), (0, tgt_t - curr_t)), constant_values=pad)
+        
+    return spec
+
+if __name__ == "__main__":
+    logger.info("STARTING SPECTROGRAM GENERATION")
+    for sub in tqdm(SUBJECTS):
+        process_subject(sub)
+    logger.info("Done.")
