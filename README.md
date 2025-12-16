@@ -1,9 +1,3 @@
-Here is a comprehensive, professional, and updated `README.md` file. It reflects the shift to **PyTorch**, the implementation of **Advanced Architectures (ATCNet/EEGNet)**, the addition of **Transfer Learning**, and the **Digital Twin Simulations**.
-
-You can copy-paste this directly into your repository.
-
-***
-
 # Brain-Machine Interface (BCI) for Robotic Control 🧠➡️🤖
 
 **A Deep Learning framework for decoding Motor Imagery (MI) EEG signals to control robotic systems.**
@@ -42,23 +36,35 @@ graph LR
 
 ```text
 BMI-Robotic-Control/
-├── Datasets/               # Raw and Processed EEG data
-├── results/                # Saved models (.pth), logs, and figures
-├── src/
-│   ├── config.py           # Central configuration (Paths, Hyperparams)
-│   ├── automated_cleaning.py   # ICA and Filtering Pipeline
-│   ├── automated_validation.py # PSD and Variance Reports
-│   ├── feature_engineering.py  # Spectrogram generation
-│   ├── feature_engineering_eegnet.py # Raw Time-Series epoching
-│   ├── train.py            # Main training loop (General Model)
-│   ├── final_transfer_learning.py # User Calibration Script
-│   ├── models/             # PyTorch Model Architectures
-│   │   ├── eegnet.py
-│   │   ├── atcnet.py
-│   │   └── spectrogram_cnn.py
-│   └── simulation_rover_final.py # Final Demo (Digital Twin)
-├── requirements.txt
-└── README.md
+├── Datasets/               # Data Storage
+│   ├── raw/                # Original .edf files (PhysioNet)
+│   └── processed/          # Cleaned .fif and Feature extracted .pkl files
+│
+├── results/                # Experiment Outputs
+│   ├── models/             # Saved state_dicts (.pth) for General Models
+│   └── calibrated_models/  # Subject-specific fine-tuned models (e.g., S029)
+│
+├── src/                    # Source Code
+│   ├── config.py           # Central Configuration (Paths, Constants, Hyperparams)
+│   ├── train.py            # Main Training Loop (General Subject-Independent Model)
+│   ├── final_transfer_learning.py # User Calibration Pipeline (Transfer Learning)
+│   ├── simulation_ursina.py   # Final 3D Digital Twin Simulation (Rover)
+│   │
+│   ├── preprocessing/      # Stage 1: Signal Cleaning
+│   │   ├── automated_cleaning.py   # Bandpass, Notch, and ICA Artifact Removal
+│   │   └── automated_validation.py # PSD and Variance Quality Reports
+│   │
+│   ├── feature_extraction/ # Stage 2: Data Transformation
+│   │   ├── feature_engineering_eegnet.py # Raw Time-Series Extraction (for EEGNet/ATCNet)
+│   │   └── feature_engineering.py        # Spectrogram Generation (for CNN)
+│   │
+│   └── models/             # PyTorch Model Architectures
+│       ├── eegnet.py          # Compact CNN (Efficiency Focused)
+│       ├── atcnet.py          # Attention Temporal Convolutional Network (Accuracy Focused)
+│       └── spectrogram_cnn.py # 2D Computer Vision Baseline
+│
+├── requirements.txt        # Python Dependencies
+└── README.md               # Project Documentation
 ```
 
 ---
