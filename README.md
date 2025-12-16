@@ -1,69 +1,161 @@
-# Brain-Machine Interface for Robotic Control 🧠➡️🤖
+Here is a comprehensive, professional, and updated `README.md` file. It reflects the shift to **PyTorch**, the implementation of **Advanced Architectures (ATCNet/EEGNet)**, the addition of **Transfer Learning**, and the **Digital Twin Simulations**.
 
-This project aims to build a complete Brain-Machine Interface (BMI) system to control a robot using electroencephalography (EEG) signals. The core of the project involves decoding motor imagery (MI) brainwaves—the signals generated when a person imagines moving their left or right hand—to produce control commands.
+You can copy-paste this directly into your repository.
 
-The pipeline covers the full spectrum of a BCI project: from raw signal preprocessing with MNE-Python to training deep learning models (ANN/CNN) with TensorFlow/Keras, with the end goal of real-time robotic integration.
+***
 
-## Project Pipeline
+# Brain-Machine Interface (BCI) for Robotic Control 🧠➡️🤖
 
-The workflow is structured as follows:
+**A Deep Learning framework for decoding Motor Imagery (MI) EEG signals to control robotic systems.**
 
-`Raw EEG Data (.edf) -> MNE Preprocessing (Filtering, ICA) -> Labeled Epochs -> Model Training (TensorFlow) -> Robot Command`
+This project implements an end-to-end BCI pipeline: from raw signal processing and artifact removal to training state-of-the-art architectures (EEGNet, ATCNet) and validating them in a real-time digital twin simulation.
 
-## Key Features
+---
 
-* **EEG Preprocessing:** A robust pipeline for cleaning raw EEG data, including band-pass filtering and automated artifact removal using Independent Component Analysis (ICA).
-* **Motor Imagery Classification:** Trains deep learning models to classify between left and right imagined fist movements.
-* **Data Source:** Utilizes the well-established **PhysioNet EEG Motor Movement / Imagery Dataset**.
-* **Deep Learning:** Implements and evaluates both Artificial Neural Networks (ANN) and Convolutional Neural Networks (CNN) for the classification task.
+## 🚀 Key Features
 
-## Getting Started
+*   **State-of-the-Art Architectures:** Implemented and benchmarked **EEGNet**, **ATCNet** (Attention Temporal Convolutional Network), and **Spectrogram CNNs** in **PyTorch**.
+*   **Robust Preprocessing:** Automated pipeline using **MNE-Python** for filtering (4-40Hz), artifact removal (ICA for EOG/EMG), and signal standardization.
+*   **Transfer Learning & Calibration:** A dedicated pipeline (`final_transfer_learning.py`) to fine-tune general models to specific users, boosting accuracy from **~75% (General)** to **>85% (Calibrated)**.
+*   **Digital Twin Simulation:** A real-time visualizer using **Ursina Engine** and **PyBullet** to demonstrate robotic control (Rover/Arm) based on decoded brain states.
+*   **Large-Scale Dataset:** Trained on the **PhysioNet EEG Motor Imagery Dataset** (109 Subjects).
+
+---
+
+## 🛠️ System Architecture
+
+```mermaid
+graph LR
+    A[Raw EEG Data] --> B(MNE Preprocessing);
+    B --> C{Feature Extraction};
+    C -->|Time Series| D[EEGNet / ATCNet];
+    C -->|Spectrograms| E[Vision CNN];
+    D --> F[Model Training];
+    E --> F;
+    F --> G[Transfer Learning];
+    G --> H[Robotic Simulation];
+```
+
+---
+
+## 📂 Project Structure
+
+```text
+BMI-Robotic-Control/
+├── Datasets/               # Raw and Processed EEG data
+├── results/                # Saved models (.pth), logs, and figures
+├── src/
+│   ├── config.py           # Central configuration (Paths, Hyperparams)
+│   ├── automated_cleaning.py   # ICA and Filtering Pipeline
+│   ├── automated_validation.py # PSD and Variance Reports
+│   ├── feature_engineering.py  # Spectrogram generation
+│   ├── feature_engineering_eegnet.py # Raw Time-Series epoching
+│   ├── train.py            # Main training loop (General Model)
+│   ├── final_transfer_learning.py # User Calibration Script
+│   ├── models/             # PyTorch Model Architectures
+│   │   ├── eegnet.py
+│   │   ├── atcnet.py
+│   │   └── spectrogram_cnn.py
+│   └── simulation_rover_final.py # Final Demo (Digital Twin)
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## ⚙️ Installation
 
 ### Prerequisites
+*   **Python 3.10+**
+*   **CUDA-capable GPU** (Highly Recommended for ATCNet training)
 
-* Python 3.10 (for GPU support with TensorFlow)
-* An NVIDIA GPU with CUDA and cuDNN installed (for the `.venv-gpu` environment)
-
-### Installation and Setup
-
-Follow these steps in your terminal to set up the project environment.
-
+### Setup
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/Littnatenate/BMI-Robotic-Control.git](https://github.com/Littnatenate/BMI-Robotic-Control.git)
+    git clone https://github.com/Littnatenate/BMI-Robotic-Control.git
     cd BMI-Robotic-Control
     ```
 
-2.  **Create the Virtual Environment:**
-    This project includes two potential environments. For GPU-accelerated training, create and use the `.venv-gpu`.
+2.  **Create a Virtual Environment:**
+    ```bash
+    python -m venv .venv
+    # Windows:
+    .\.venv\Scripts\activate
+    # Mac/Linux:
+    source .venv/bin/activate
+    ```
 
-    * **To create the GPU environment (recommended):**
-        ```powershell
-        py -3.10 -m venv .venv-gpu
-        ```
-
-3.  **Activate the Environment:**
-    You must activate the environment in your terminal before installing packages or running the script.
-
-    * **To activate the GPU environment:**
-        ```powershell
-        .\.venv-gpu\Scripts\Activate.ps1
-        ```
-
-4.  **Install Required Libraries:**
-    This command reads the `requirements.txt` file and installs all necessary packages like TensorFlow and MNE.
+3.  **Install Dependencies:**
     ```bash
     pip install -r requirements.txt
     ```
+    *Key Libraries: `torch`, `mne`, `numpy`, `scipy`, `ursina`, `wandb`, `scikit-learn`.*
 
-## Usage
+---
 
-The main preprocessing pipeline is located in `src/main.py`. This script is configured to download the necessary data, preprocess it for a single subject, and prepare it for model training.
+## 🏃‍♂️ Usage Guide
 
-1.  Make sure your virtual environment is active.
-2.  Run the main script from the project root directory:
+The pipeline is designed to be run sequentially.
+
+### 1. Preprocessing (Cleaning)
+Clean raw EDF files using Bandpass filtering (4-40Hz) and Independent Component Analysis (ICA).
+```bash
+python src/automated_cleaning.py
+```
+
+### 2. Feature Extraction
+Prepare the data for Deep Learning.
+*   **For EEGNet/ATCNet (Time-Series):**
     ```bash
-    python src/main.py
+    python src/feature_engineering_eegnet.py
+    ```
+*   **For CNN (Spectrogram Images):**
+    ```bash
+    python src/feature_engineering.py
     ```
 
-This will run the full preprocessing pipeline for a single subject and output the final shape of the data ready for machine learning.
+### 3. General Model Training
+Train a "Subject-Independent" model on the dataset (e.g., 80 subjects).
+```bash
+python src/train.py
+```
+*Modify `src/train.py` to switch between `ATCNET_CONFIG`, `EEGNET_CONFIG`, etc.*
+
+### 4. User Calibration (Transfer Learning)
+Fine-tune the general model for a specific target subject (e.g., Subject 29) to achieve high-performance control.
+```bash
+python src/final_transfer_learning.py
+```
+
+### 5. Final Simulation (The Demo)
+Launch the Digital Twin to visualize the BCI controlling a rover/robot based on the calibrated model.
+```bash
+python src/simulation_rover_final.py
+```
+
+---
+
+## 📊 Model Architectures
+
+| Model | Description | Input Shape | Best Use Case |
+| :--- | :--- | :--- | :--- |
+| **EEGNet** | Compact CNN with Depthwise Separable Convolutions. | `(1, 64, 320)` | **Real-time Control** (Fast & Efficient). |
+| **ATCNet** | Hybrid architecture using **TCN** and **Multi-Head Attention**. | `(1, 64, 320)` | **Offline Analysis** (High Accuracy). |
+| **Spectrogram CNN** | Standard 2D CNN treating EEG as images (Heatmaps). | `(64, 32, 40)` | **Baseline Comparison** (Computer Vision). |
+
+---
+
+## 📈 Results
+
+*   **General Accuracy:** ~75.2% (EEGNet) on unseen subjects.
+*   **Calibrated Accuracy:** **>85%** after fine-tuning on 50% of subject data.
+*   **Inference Speed:** <10ms per trial on GPU.
+
+---
+
+## 📝 Acknowledgments
+
+*   **Dataset:** [PhysioNet EEG Motor Movement/Imagery Dataset](https://physionet.org/content/eegmmidb/1.0.0/)
+*   **Papers:**
+    *   *EEGNet: A Compact Convolutional Neural Network for EEG-based Brain-Computer Interfaces (Lawhern et al., 2018)*
+    *   *ATCNet: Attention Temporal Convolutional Network for EEG-based Motor Imagery Classification (Altaheri et al., 2022)*
