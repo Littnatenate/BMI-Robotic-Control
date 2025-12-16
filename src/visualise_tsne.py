@@ -50,8 +50,8 @@ def extract_features(model, loader):
     features_list = []
     labels_list = []
     
-    # --- THE UNIVERSAL HOOK ---
-    # We hook the input to the Final Fully Connected Layer (fc).
+    
+    # Hooking the input to the Final Fully Connected Layer (fc).
     # This captures the "Features" right before the decision is made.
     activation = {}
     def get_activation(name):
@@ -71,7 +71,7 @@ def extract_features(model, loader):
             
             feats = activation['features'].cpu().numpy()
             # Flatten just in case (Batch, Features)
-            feats = feats.reshape(feats.shape[0], -1) 
+            feats = feats.reshape(feats.shape[0], -1)
             
             features_list.append(feats)
             labels_list.append(y.numpy())
@@ -85,7 +85,7 @@ def run_tsne():
         print(f"Did you train {MODEL_TYPE} yet?")
         return
 
-    # 1. Load Data (Test Set Only)
+    # Load test set data
     subs = list(SUBJECTS)
     import random
     random.seed(42)

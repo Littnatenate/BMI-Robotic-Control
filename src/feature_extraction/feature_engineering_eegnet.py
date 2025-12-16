@@ -1,7 +1,5 @@
 """
-Feature Engineering: Raw Time-Series Extraction (EEGNet/ATCNet)
-===============================================================
-This script processes cleaned EEG data for Deep Learning models.
+Processes the cleaned EEG data for Deep Learning models.
 It performs the following steps:
 1. Resampling to 160Hz.
 2. Bandpass filtering (4-40Hz).
@@ -21,14 +19,13 @@ import numpy as np
 import mne
 from tqdm import tqdm
 
-# Add source directory to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(os.path.join(parent_dir, 'src'))
 
 from config import PROCESSED_DATA_DIR, SUBJECTS, TASKS
 
-# --- Configuration ---
+# Configuration
 OUTPUT_DIR = PROCESSED_DATA_DIR.parent / "processed_eegnet"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -47,23 +44,23 @@ mne.set_log_level('ERROR')
 
 
 def _preprocess_task_data(file_path, task_name):
-    """
-    Loads, filters, and epochs a single EEG file.
-    Returns X (features) and y (labels) or (None, None) if failed.
-    """
+    
+    #Loads, filters, and epochs a single EEG file.
+    #Returns X (features) and y (labels) or (None, None) if failed.
+
     try:
         raw = mne.io.read_raw_fif(file_path, preload=True)
 
-        # 1. Resample
+        # Resample
         # Enforce target sampling rate to ensure consistent array sizes
         if raw.info['sfreq'] != TARGET_SFREQ:
             raw.resample(TARGET_SFREQ, npad="auto")
 
-        # 2. Filter
+        # Filter
         # FIR bandpass filter (4-40Hz)
         raw.filter(FREQ_BAND[0], FREQ_BAND[1], fir_design='firwin', verbose=False)
 
-        # 3. Event Extraction
+        # Event Extraction
         events, event_id_map = mne.events_from_annotations(raw, verbose=False)
         
         # Identify specific event codes for T1 and T2
@@ -87,7 +84,7 @@ def _preprocess_task_data(file_path, task_name):
             return None, None
 
         # 4. Epoching
-        # Note: We subtract one sample from tmax to handle MNE's inclusive slicing
+        # Subtract one sample from tmax to handle MNE's inclusive slicing
         # ensuring the output length matches EXPECTED_SAMPLES exactly.
         epochs = mne.Epochs(
             raw, 
@@ -102,7 +99,7 @@ def _preprocess_task_data(file_path, task_name):
         X = epochs.get_data(copy=True) * 1e6  # Scale V to uV
         y_raw = epochs.events[:, -1]
 
-        # 5. Shape Enforcement
+        # Shape Enforcement
         # Ensure exact time-dimension length (N, Channels, Time)
         current_samples = X.shape[2]
         
@@ -115,7 +112,7 @@ def _preprocess_task_data(file_path, task_name):
                 diff = EXPECTED_SAMPLES - current_samples # Calculates how much to add
                 X = np.pad(X, ((0, 0), (0, 0), (0, diff)), mode='edge') # This is for N_Epochs, N_Channels, N_Timepoints
 
-        # 6. Label Mapping
+        # Label Mapping
         # Real Movement: 0, 1 | Imagined Movement: 2, 3
         y = np.zeros_like(y_raw)
         #base_offset = 2 if task_name == 'imagined_movement' else 0
@@ -136,9 +133,9 @@ def _preprocess_task_data(file_path, task_name):
 
 
 def process_subject(subject_id):
-    """
-    Aggregates all tasks for a subject and saves the feature set.
-    """
+    
+    #Aggregates all tasks for a subject and saves the feature set.
+    
     sub_str = f"S{subject_id:03d}"
     clean_dir = PROCESSED_DATA_DIR / sub_str
     

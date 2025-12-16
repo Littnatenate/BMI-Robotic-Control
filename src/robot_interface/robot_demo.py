@@ -1,9 +1,4 @@
 """
-VISUAL ROBOT SIMULATION (DIGITAL TWIN)
-======================================
-Description: 
-    A graphical demonstration of the BCI system using Turtle Graphics.
-    
 Scientific Integrity:
     - Loads the Calibrated Model (S029).
     - SKIPS the first 50% of data (Calibration set).
@@ -37,8 +32,8 @@ from src.models.atcnet import ATCNet
 from src.models.spectrogram_cnn import SpectrogramCNN
 
 # DEMO SETTINGS
-TARGET_SUBJECT = 29            # <--- YOUR 100% ACCURACY SUBJECT
-MODEL_TYPE = 'eegnet'          # <--- YOUR BEST MODEL
+TARGET_SUBJECT = 29
+MODEL_TYPE = 'eegnet'
 CONFIDENCE_THRESHOLD = 0.70    
 STABILITY_COUNT = 1
 
@@ -71,18 +66,18 @@ class RobotController:
         
         return "HOLD"
 
-# VISUALIZATION SETUP (TURTLE)
+# Visualisation
 def setup_visuals():
     screen = turtle.Screen()
     screen.title(f"BCI Robot Control | Subject S{TARGET_SUBJECT:03d} | Model: {MODEL_TYPE.upper()}")
     screen.bgcolor("black")
     screen.setup(width=800, height=600)
     
-    # The "Robot" (Arrow)
+    # Arrows
     robot = turtle.Turtle()
     robot.shape("arrow")
-    robot.color("#00FF00") # Hacker Green
-    robot.shapesize(4, 4, 4) # Make it big
+    robot.color("#00FF00") 
+    robot.shapesize(4, 4, 4) 
     robot.speed(0)
     robot.setheading(90) # Face Up
     
@@ -104,7 +99,7 @@ def get_model_architecture():
 def run_simulation():
     if not MODEL_PATH.exists():
         print(f"CRITICAL ERROR: No calibrated model found at: {MODEL_PATH}")
-        print("Please run final_transfer_learning.py first!")
+        print("Run final_transfer_learning.py first!")
         return
 
     # Load the specific calibrated brain
@@ -118,7 +113,7 @@ def run_simulation():
     print(f"Loading Data for S{TARGET_SUBJECT:03d}...")
     ds = BCIDataset([TARGET_SUBJECT], mode=mode, augment=False)
     
-    # SPLIT: Skip the first 50% (Calibration Data)
+    # SPLIT: Skip the first 50%
     total_len = len(ds)
     split_idx = int(total_len * 0.5)
     unseen_indices = list(range(split_idx, total_len))
@@ -156,7 +151,7 @@ def run_simulation():
             # Robot Logic
             action = controller.process_prediction(conf_val, pred_val)
             
-            # --- VISUAL UPDATE ---
+            # visual update
             target_text = "LEFT" if true_val == 0 else "RIGHT"
             
             # 1. Clear Screen
@@ -199,7 +194,6 @@ def run_simulation():
             # Console Log
             print(f"Frame {i:02d} | User: {target_text} | Robot: {action} | Conf: {conf_val:.2f}")
             
-            # --- CINEMATIC PACING ---
             # Sleep 1.5 seconds so the video viewer can read the text
             time.sleep(1.5) 
 

@@ -1,6 +1,4 @@
 """
-FEATURE ENGINEERING: SPECTROGRAMS (GAP-CNN)
-===========================================
 1. Loads Cleaned EEG (.fif).
 2. Epochs the data (T1/T2 events).
 3. Computes STFT (Short-Time Fourier Transform).
@@ -12,7 +10,7 @@ FEATURE ENGINEERING: SPECTROGRAMS (GAP-CNN)
 import sys
 import os
 
-# --- PATH FIX ---
+# File paths
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(os.path.dirname(current_dir)) # Go up two levels to find src
 sys.path.append(os.path.join(parent_dir, 'src'))
@@ -32,12 +30,12 @@ from config import (
     SUBJECTS, TASKS, LABEL_MAP
 )
 
-# --- SPECTROGRAM SETTINGS ---
+# Spectrogram setting
 # Refined for Motor Imagery (4-40Hz)
 FREQ_RANGE = (4, 40)
 NFFT = 128            
 NOVERLAP = 64         
-TARGET_SHAPE = (32, 40) # (FreqBins, TimeBins) - Standardized size for CNN
+TARGET_SHAPE = (32, 40) # (FreqBins, TimeBins) 
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -60,7 +58,7 @@ def process_subject(subject_id):
         try:
             raw = mne.io.read_raw_fif(file_path, preload=True)
             
-            # 1. Extract Events (T1=Left, T2=Right)
+            # Extract Events (T1=Left, T2=Right)
             events, event_id_map = mne.events_from_annotations(raw, verbose=False)
             
             # Robust mapping (Handle different naming variations)
@@ -69,7 +67,7 @@ def process_subject(subject_id):
             
             if not t1_id or not t2_id: continue
             
-            # 2. Epoching (0.5s to 2.5s)
+            # Epoching (0.5s to 2.5s)
             # We cut 2 seconds of data where the user is "Imagining"
             epochs = mne.Epochs(raw, events, event_id={str(t1_id): t1_id, str(t2_id): t2_id}, 
                                 tmin=0.5, tmax=2.5, baseline=None, verbose=False)
@@ -77,7 +75,7 @@ def process_subject(subject_id):
             data = epochs.get_data(copy=True)
             event_list = epochs.events[:, -1]
             
-            # 3. Compute Spectrograms
+            # Compute Spectrograms
             for i in range(len(data)):
                 epoch_data = data[i] # Shape: (Channels, Time)
                 trial_specs = []
@@ -100,7 +98,7 @@ def process_subject(subject_id):
                 features.append(np.array(trial_specs))
                 
                 # Label Mapping: T1->0 (Left), T2->1 (Right)
-                # We encode task type into label: 0/1=Actual, 2/3=Imagined
+                # Encode the task type into labels: 0/1=Actual, 2/3=Imagined
                 base_label = 0 if event_list[i] == t1_id else 1
                 offset = 2 if task == 'imagined_movement' else 0
                 labels.append(base_label + offset)
@@ -111,8 +109,8 @@ def process_subject(subject_id):
 
     if not features: return
 
-    # 4. Standardization (Z-Score per channel)
-    # Critical for CNN convergence
+    # Standardization (Z-Score per channel)
+    # important for CNN convergence
     X = np.array(features) # (N, Ch, Freq, Time)
     y = np.array(labels)
     
@@ -126,13 +124,13 @@ def process_subject(subject_id):
         scaled = scaler.fit_transform(flat).reshape(shape)
         X_scaled[:, ch, :, :] = scaled
 
-    # 5. Save
+    # Save
     out_file = sub_dir / f"{sub_str}_spectrograms.pkl"
     with open(out_file, 'wb') as f:
         pickle.dump({'X': X_scaled, 'y': y, 'channels': raw.ch_names}, f)
 
 def _resize_spec(spec, target_shape):
-    """Ensures every image is exactly (32, 40)."""
+    #Ensures every image is exactly (32, 40).
     curr_f, curr_t = spec.shape
     tgt_f, tgt_t = target_shape
     

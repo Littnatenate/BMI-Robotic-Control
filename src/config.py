@@ -1,9 +1,4 @@
 """
-CONFIG.PY
-=========
-Central Configuration for the BMI Robotic Control Project.
-Target Accuracy: ~75% (Reproducible)
-
 Structure:
 - PATHS: Input/Output directories.
 - EXPERIMENT: Subject ranges and Task definitions.
