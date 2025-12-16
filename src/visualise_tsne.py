@@ -1,6 +1,4 @@
 """
-UNIVERSAL t-SNE VISUALIZER
-==========================
 Description: Generates feature space maps for EEGNet, ATCNet, or SpectrogramCNN.
 Usage: Change 'MODEL_TYPE' at the top to switch models.
 """
@@ -27,7 +25,6 @@ from src.train import BCIDataset, get_model, EEGNET_CONFIG, ATCNET_CONFIG, CNN_C
 # CONFIGURATION
 # Options: 'eegnet', 'atcnet', 'cnn'
 MODEL_TYPE = 'atcnet'
-# ------------------------------------
 
 # Select Config based on type
 if MODEL_TYPE == 'eegnet':

@@ -144,7 +144,7 @@ status_bg = Entity(parent=camera.ui, model='quad', scale=(0.8, 0.1),
 status_text = Text(text="SYSTEM IDLE", position=(0, 0.41), origin=(0,0), 
                    scale=1.5, color=color.white)
 
-# --- 5. LOGIC & LOOP ---------------------------------------------------------
+# LOGIC & LOOP
 
 # Load Data
 print("Loading AI Model & Data...")

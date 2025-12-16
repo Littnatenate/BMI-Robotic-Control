@@ -114,6 +114,7 @@ def _preprocess_task_data(file_path, task_name):
 
         # Label Mapping
         # Real Movement: 0, 1 | Imagined Movement: 2, 3
+        # Just in case in the future there's additional classes etc...
         y = np.zeros_like(y_raw)
         #base_offset = 2 if task_name == 'imagined_movement' else 0
         if task_name == 'imagined_movement':

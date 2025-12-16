@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
-# UPDATED IMPORT: Added F1, Precision, Recall
+
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, precision_score, recall_score
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -171,7 +171,7 @@ def get_model(cfg):
     drop = cfg['dropout']
     
     if name == 'eegnet':
-        # F1=8 is standard EEGNet. D=2 makes F2=16.
+        # F1=8, D=2 -> F2=16.
         return EEGNet(dropoutRate=drop, F1=8, D=2, kernLength=64)
     
     if name == 'atcnet':
@@ -196,8 +196,7 @@ def train():
     # Data Split
     subs = list(SUBJECTS)
     
-    # Random Shuffle with Fixed Seed
-    # Ensures consistent splits across runs but shuffles subjects
+    # Consistent splits across runs but shuffles subjects
     random.seed(42) 
     random.shuffle(subs)
     
