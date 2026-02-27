@@ -520,3 +520,22 @@ tensorboard/
 *.DS_Store
 Thumbs.db
 
+# Weights and Biases
+wandb/
+*.wandb
+artifacts/
+
+
+# Ignore research papers and images
+*.pdf
+*.png
+*.jpg
+*.jpeg
+
+# Ignore dataset files (usually too big for GitHub)
+*.edf
+*.fif
+*.pkl
+
+# Ignore Python cache
+__pycache__/
